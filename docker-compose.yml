@@ -1,0 +1,40 @@
+# Local development stack. Usage: docker compose up --build
+# Ports bind to 127.0.0.1 only; nothing is reachable from the network.
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  backend:
+    <<: *hardening
+    build: ./backend
+    # Only the backend receives .env (provider keys). It is optional; DEMO_MODE works without it.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////data/threatscope.db
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend:/app:ro           # live reload; read-only so the container can't modify source
+      - threatscope-data:/data      # SQLite database
+
+  frontend:
+    <<: *hardening
+    build: ./frontend
+    # Deliberately no env_file: secrets must never reach the frontend.
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
+    depends_on:
+      - backend
+
+volumes:
+  threatscope-data:

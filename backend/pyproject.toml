@@ -1,0 +1,20 @@
+[project]
+name = "threatscope-backend"
+version = "0.1.0"
+description = "ThreatScope API — passive threat intelligence enrichment"
+requires-python = ">=3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes, I: isort, B: bugbear, S: bandit security checks, UP: pyupgrade
+select = ["E", "F", "I", "B", "S", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
