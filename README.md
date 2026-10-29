@@ -6,13 +6,16 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 
 ## Status
 
-**Phase 1: foundation.** The repository structure, dev environment, CI, and security guardrails are in place.
+**Phase 2: IOC engine.** Indicators are parsed, validated, and typed. Provider enrichment has not started yet.
 
 - ✅ FastAPI backend with a layered architecture and a `GET /health` endpoint
 - ✅ React + TypeScript + Tailwind navigation shell with a dark SOC theme
 - ✅ Docker Compose dev stack (non-root, hardened, localhost-only)
 - ✅ GitHub Actions CI: ruff and pytest for the backend; lint and build for the frontend
-- ⏳ IOC enrichment, providers, and threat feeds have not started yet
+- ✅ IOC engine: IPv4, IPv6, domain, URL, MD5, SHA1, SHA256, with automatic type detection, normalization, refanging, and network-scope labeling
+- ✅ `POST /api/investigate` and `POST /api/investigate/bulk` (validation only), with a consistent error format
+- ✅ Investigate and Bulk Analysis pages
+- ⏳ Provider enrichment, persistence, and threat feeds have not started yet
 
 ## Planned features
 

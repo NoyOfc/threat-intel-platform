@@ -114,8 +114,12 @@ CI (`.github/workflows/ci.yml`) runs ruff + pytest for the backend and `npm ci`,
 
 `app.main.create_app(settings)` is the app factory; tests build an app with an isolated temp SQLite DB (see `tests/conftest.py`).
 
+**IOC engine (`services/ioc.py`)** — `parse_ioc(raw)` is the single entry point for turning untrusted input into an `IOC` (type, normalized value, `network_scope`). It is pure string processing (`ipaddress`, `re`, `urlsplit`): never add DNS resolution, sockets, or HTTP here. `network_scope`/`is_internal` label private/loopback/metadata values as *valid data*; they are never a reason to connect. Invalid input raises `IOCValidationError(code, message, suspected_type)`. Any new code path that accepts an IOC must go through `parse_ioc`.
+
+**API conventions** — feature routes live under `/api` (`/health` is the exception). Every error uses the envelope `{"error": {"code", "message", "details"}}` (`api/errors.py`); handlers must not echo submitted input. `api/middleware.py` caps request bodies (1 MiB, Content-Length required). `tests/test_ioc_safety.py` blocks sockets/DNS during IOC processing and statically forbids shell/eval/exec anywhere in `app/` and network clients outside `app/providers/` — keep it passing.
+
 **Database portability:** keep SQL portable (ORM / SQLAlchemy Core only, no SQLite-specific features) so moving to PostgreSQL is a `DATABASE_URL` + driver change. SQLite-only connect args are isolated in `db/session.py`.
 
-**Frontend (`frontend/src/`)** — Vite + React 19 + React Router 7 + Tailwind 4 (configured via `@tailwindcss/vite`, theme tokens in `index.css`). `navigation.ts` is the single source of nav sections, from which `router.tsx` builds routes (currently all render `pages/PlaceholderPage`; replace per section as features land); `components/Layout.tsx` is the app shell/sidebar; `lib/api.ts` is the only place that calls the backend, always via same-origin relative paths (`/api/...`, `/health`) that the Vite dev server proxies to `API_PROXY_TARGET`.
+**Frontend (`frontend/src/`)** — Vite + React 19 + React Router 7 + Tailwind 4 (configured via `@tailwindcss/vite`, theme tokens in `index.css`). `navigation.ts` is the single source of nav sections, from which `router.tsx` builds routes (sections without an entry in its `PAGES` map render `pages/PlaceholderPage`); `lib/ioc.ts` mirrors backend limits/labels; IOC values are always rendered as escaped plain text, never as links; `components/Layout.tsx` is the app shell/sidebar; `lib/api.ts` is the only place that calls the backend, always via same-origin relative paths (`/api/...`, `/health`) that the Vite dev server proxies to `API_PROXY_TARGET`.
 
 Full design notes: `docs/architecture.md`; threat model: `docs/security.md`.

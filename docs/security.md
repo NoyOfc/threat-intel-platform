@@ -22,6 +22,9 @@ The binding rules live in [`CLAUDE.md`](../CLAUDE.md). This document explains ho
 | **Secret leakage** | Keys are read only by the backend as `SecretStr`, which stays masked in reprs and logs. The frontend container receives no `.env`. Vite exposes only `VITE_*` variables, and no secret uses that prefix. `.env` is git-ignored. |
 | **Container breakout / lateral movement** | Containers run as non-root with `cap_drop: ALL` and `no-new-privileges`. There are no privileged containers, Docker socket mounts, or home-directory mounts. Source code is mounted read-only. Ports bind to `127.0.0.1`. |
 | **Supply chain** | The dependency set is small, exact versions are pinned, `npm ci --ignore-scripts` is used, and CI runs with `contents: read`. |
+| **IOC processing as an attack path** | `parse_ioc` is pure string processing with no DNS, sockets, or fetches. Private, loopback, and metadata values are accepted as data and labeled `is_internal`, never connected to. `tests/test_ioc_safety.py` blocks the network during processing and statically bans shell, `eval`, and `exec` in the backend, and network clients outside `providers/`. |
+| **Obfuscated input** | Whitespace, control, and zero-width characters are rejected. Non-standard IPv4 notations are rejected rather than guessed at. Backslashes in a URL's host part are rejected. Defanged notation is refanged and flagged. |
+| **Request abuse / DoS** | Each IOC is capped at 2048 characters, bulk requests at 500 items, and request bodies at 1 MiB with Content-Length required. Validation errors do not echo input back. |
 | **Error-message leakage** | The health check reports `database: error` without exception detail, because connection errors can include the DB URL. |
 
 ## Demo mode
