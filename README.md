@@ -6,7 +6,7 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 
 ## Status
 
-**Phase 4: threat feed.** A defensive intelligence feed from official sources has been added, alongside IOC enrichment from VirusTotal, AbuseIPDB, and AlienVault OTX with explainable risk scoring.
+**Phase 5: persistent analyst workflow.** Investigations are saved and searchable, and a watchlist, notes, tags, and IOC relationships have been added. These sit alongside the threat feed and IOC enrichment from VirusTotal, AbuseIPDB, and AlienVault OTX with explainable risk scoring.
 
 - ✅ FastAPI backend with a layered architecture and a `GET /health` endpoint
 - ✅ React + TypeScript + Tailwind navigation shell with a dark SOC theme
@@ -19,7 +19,11 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 - ✅ Explainable 0–100 risk score with contributing factors ([algorithm](docs/risk-scoring.md))
 - ✅ Providers page (`GET /api/providers/status`) showing configured, not configured, or unavailable, with keys never revealed
 - ✅ Threat feed from CISA KEV, Microsoft Threat Intelligence, Cisco Talos, SentinelOne Labs, and The DFIR Report, with filters, KEV designation, literal entity and IOC extraction, trending in collected data, and an analyst workflow ([details](docs/threat-feed.md)). CISA Advisories is planned.
-- ⏳ Investigation persistence, bulk enrichment, watchlist, and dashboard have not started yet
+- ✅ Investigation history: search, type and risk filters, date sorting, and reopening a saved investigation
+- ✅ Watchlist (Monitoring, Investigating, Confirmed Malicious, False Positive, Closed) with tags and notes
+- ✅ IOC relationships (domain → IP, IP → ASN, hash → malware, IOC → actor, campaign, tags), taken only from live provider data or analyst entry ([data model](docs/data-model.md))
+- ✅ Alembic migrations, PostgreSQL-ready schema
+- ⏳ Bulk enrichment and dashboard have not started yet
 
 ## Planned features
 

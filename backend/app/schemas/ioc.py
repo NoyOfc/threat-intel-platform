@@ -17,6 +17,7 @@ IOCInput = Annotated[str, Field(max_length=MAX_FIELD_LENGTH)]
 
 
 class IOCOut(BaseModel):
+    id: int | None = Field(default=None, description="Stored IOC id, when persisted.")
     type: IOCType
     value: str
     original: str
@@ -28,8 +29,9 @@ class IOCOut(BaseModel):
     )
 
     @classmethod
-    def from_ioc(cls, ioc: IOC) -> IOCOut:
+    def from_ioc(cls, ioc: IOC, ioc_id: int | None = None) -> IOCOut:
         return cls(
+            id=ioc_id,
             type=ioc.type,
             value=ioc.value,
             original=ioc.original,

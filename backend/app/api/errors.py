@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.schemas.errors import ErrorBody, ErrorResponse
 from app.services.ioc import IOCValidationError
+from app.services.iocs import RelationshipError
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,10 @@ def error_response(
 async def _ioc_validation_error(_: Request, exc: IOCValidationError) -> JSONResponse:
     details = {"suspected_type": exc.suspected_type.value} if exc.suspected_type else None
     return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, exc.message, details)
+
+
+async def _relationship_error(_: Request, exc: RelationshipError) -> JSONResponse:
+    return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_relationship", str(exc))
 
 
 async def _request_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -68,6 +73,7 @@ async def _unhandled_error(_: Request, exc: Exception) -> JSONResponse:
 
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(IOCValidationError, _ioc_validation_error)
+    app.add_exception_handler(RelationshipError, _relationship_error)
     app.add_exception_handler(RequestValidationError, _request_validation_error)
     app.add_exception_handler(StarletteHTTPException, _http_error)
     app.add_exception_handler(Exception, _unhandled_error)

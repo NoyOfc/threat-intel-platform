@@ -62,6 +62,10 @@ GET /api/feed/events | /trending | /events/{id} ─► services/threat_feed.py
 
 The tables (`threat_events`, `feed_source_state`) are the first ORM models. `create_all` creates them at startup, and Alembic should be added before any existing table changes. List-valued fields live in a portable `JSON` column. See [`threat-feed.md`](threat-feed.md).
 
+## Persistence
+
+See [`data-model.md`](data-model.md) for the schema, the shared tables, the IOC relationship rules, and the migrations.
+
 ## Database portability
 
 All database access goes through the SQLAlchemy ORM or Core with no SQLite-specific SQL. SQLite connect arguments are isolated in `db/session.py`. Moving to PostgreSQL means:
@@ -70,7 +74,7 @@ All database access goes through the SQLAlchemy ORM or Core with no SQLite-speci
 2. Set `DATABASE_URL=postgresql+psycopg://...`.
 3. Add a `db` service to `docker-compose.yml` that is not published to the host.
 
-Tables are currently created with `Base.metadata.create_all`. Introduce Alembic migrations before changing an existing table's schema.
+The schema is managed by Alembic (`backend/migrations/`), and migrations run at startup.
 
 ## Frontend ↔ backend
 

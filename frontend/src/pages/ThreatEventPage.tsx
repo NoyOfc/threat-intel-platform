@@ -2,10 +2,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { CategoryBadge, EntityChips, KnownExploitedBadge, SeverityBadge } from '../components/FeedBadges'
 import { TypeBadge } from '../components/IocBadges'
+import NotesPanel from '../components/NotesPanel'
 import {
   ApiError,
+  addEventNote,
+  deleteEventNote,
   getThreatEvent,
-  updateAnalyst,
+  updateAnalystStatus,
   type AnalystStatus,
   type ThreatEvent,
   type ThreatEventDetail,
@@ -283,19 +286,17 @@ function IocSection({ event }: { event: ThreatEvent }) {
 }
 
 function AnalystPanel({ event }: { event: ThreatEvent }) {
-  const [status, setStatus] = useState<AnalystStatus | null>(event.analyst_status)
-  const [notes, setNotes] = useState(event.analyst_notes ?? '')
-  const [saved, setSaved] = useState<{ at: string | null; error?: string }>({ at: event.analyst_updated_at })
+  const [current, setCurrent] = useState<ThreatEvent>(event)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function save(next: { status?: AnalystStatus | null; notes?: string }) {
+  async function setStatus(status: AnalystStatus | null) {
     setSaving(true)
+    setError(null)
     try {
-      const updated = await updateAnalyst(event.id, next)
-      setStatus(updated.analyst_status)
-      setSaved({ at: updated.analyst_updated_at })
-    } catch (error) {
-      setSaved((prev) => ({ ...prev, error: error instanceof ApiError ? error.message : 'Could not save.' }))
+      setCurrent(await updateAnalystStatus(event.id, status))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save.')
     } finally {
       setSaving(false)
     }
@@ -309,46 +310,36 @@ function AnalystPanel({ event }: { event: ThreatEvent }) {
             key={option.value}
             type="button"
             disabled={saving}
-            aria-pressed={status === option.value}
-            onClick={() => save({ status: status === option.value ? null : option.value })}
+            aria-pressed={current.analyst_status === option.value}
+            onClick={() => void setStatus(current.analyst_status === option.value ? null : option.value)}
             className={`rounded px-2.5 py-1 text-xs ring-1 ${
-              status === option.value ? option.tone : 'text-slate-400 ring-surface-700 hover:text-slate-200'
+              current.analyst_status === option.value
+                ? option.tone
+                : 'text-slate-400 ring-surface-700 hover:text-slate-200'
             }`}
           >
             {option.label}
           </button>
         ))}
       </div>
-      <label htmlFor="analyst-notes" className="mt-4 block text-xs text-slate-500">
-        Notes
-      </label>
-      <textarea
-        id="analyst-notes"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        maxLength={5000}
-        rows={5}
-        className="mt-1 w-full rounded-md border border-surface-700 bg-surface-950 px-3 py-2 text-sm text-slate-200 focus:border-accent focus:outline-none"
+      <p className="mt-2 text-[11px] text-slate-500">
+        {error ? (
+          <span className="text-rose-300">{error}</span>
+        ) : current.analyst_updated_at ? (
+          `Status updated ${formatDateTime(current.analyst_updated_at)}`
+        ) : (
+          'Not reviewed'
+        )}
+      </p>
+      <h3 className="mt-4 mb-2 text-xs text-slate-500">Notes</h3>
+      <NotesPanel
+        notes={current.notes}
+        onAdd={async (body) => setCurrent(await addEventNote(event.id, body))}
+        onDelete={async (noteId) => {
+          await deleteEventNote(event.id, noteId)
+          setCurrent((prev) => ({ ...prev, notes: prev.notes.filter((n) => n.id !== noteId) }))
+        }}
       />
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-[11px] text-slate-500">
-          {saved.error ? (
-            <span className="text-rose-300">{saved.error}</span>
-          ) : saved.at ? (
-            `Saved ${formatDateTime(saved.at)}`
-          ) : (
-            'Not reviewed'
-          )}
-        </span>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => save({ notes })}
-          className="rounded-md bg-surface-800 px-3 py-1.5 text-xs text-slate-200 ring-1 ring-surface-700 hover:bg-surface-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save notes'}
-        </button>
-      </div>
     </Section>
   )
 }

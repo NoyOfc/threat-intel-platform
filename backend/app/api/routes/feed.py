@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_feed_collector, get_settings_from_app
 from app.core.config import Settings
 from app.db.session import get_db
+from app.models import ThreatEvent
 from app.schemas.errors import ErrorResponse
 from app.schemas.feed import (
     AnalystStatus,
@@ -21,8 +22,10 @@ from app.schemas.feed import (
     ThreatEventOut,
     TrendingResponse,
 )
+from app.schemas.workflow import NoteCreate
 from app.services import threat_feed
 from app.services.feed_refresh import FeedCollector, RefreshInProgressError
+from app.services.notes import add_note, remove_note
 
 router = APIRouter(prefix="/feed", tags=["threat feed"], responses={422: {"model": ErrorResponse}})
 
@@ -61,22 +64,45 @@ def list_events(
     return threat_feed.list_events(db, window, filters, collector.source_names, datetime.now(UTC))
 
 
+def _record(db: Session, event_id: str) -> ThreatEvent:
+    record = threat_feed.get_record(db, event_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Threat event not found.")
+    return record
+
+
 @router.get("/events/{event_id}", responses={404: {"model": ErrorResponse}})
 def get_event(event_id: EventId, db: DB, collector: Collector) -> ThreatEventDetail:
-    event = threat_feed.get_event(db, event_id, collector.source_names)
-    if event is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Threat event not found.")
-    return event
+    return threat_feed.detail_out(db, _record(db, event_id), collector.source_names)
 
 
 @router.patch("/events/{event_id}/analyst", responses={404: {"model": ErrorResponse}})
 def update_analyst(
     event_id: EventId, body: AnalystUpdate, db: DB, collector: Collector
 ) -> ThreatEventOut:
-    record = threat_feed.update_analyst(db, event_id, body, datetime.now(UTC))
-    if record is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Threat event not found.")
+    """Set Relevant / Monitoring / Not Relevant, or null to clear."""
+    record = _record(db, event_id)
+    threat_feed.set_analyst_status(record, body.status, datetime.now(UTC))
+    db.commit()
     return threat_feed.to_out(record, collector.source_names)
+
+
+@router.post("/events/{event_id}/notes", status_code=status.HTTP_201_CREATED)
+def add_event_note(
+    event_id: EventId, body: NoteCreate, db: DB, collector: Collector
+) -> ThreatEventOut:
+    record = _record(db, event_id)
+    add_note(record, body.body)
+    db.commit()
+    return threat_feed.to_out(record, collector.source_names)
+
+
+@router.delete("/events/{event_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event_note(event_id: EventId, note_id: int, db: DB) -> Response:
+    if not remove_note(_record(db, event_id), note_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Note not found.")
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/trending")

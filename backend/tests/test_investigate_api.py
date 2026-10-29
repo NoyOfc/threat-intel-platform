@@ -29,7 +29,9 @@ def test_investigate_valid_ioc(client: TestClient) -> None:
     UUID(body["id"])
     assert body["status"] == "completed"
     assert body["created_at"]
+    assert isinstance(body["ioc"]["id"], int)  # stored in the shared IOC table
     assert body["ioc"] == {
+        "id": body["ioc"]["id"],
         "type": "url",
         "value": "https://evil.example.com/a",
         "original": "hxxps://Evil[.]example.com/a",
