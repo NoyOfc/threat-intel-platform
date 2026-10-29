@@ -7,9 +7,12 @@ import InvestigatePage from './pages/InvestigatePage'
 import NotFound from './pages/NotFound'
 import PlaceholderPage from './pages/PlaceholderPage'
 import ProvidersPage from './pages/ProvidersPage'
+import ThreatEventPage from './pages/ThreatEventPage'
+import ThreatFeedPage from './pages/ThreatFeedPage'
 
 // Sections with a real page; every other nav item renders a placeholder.
 const PAGES: Record<string, ReactNode> = {
+  '/feed': <ThreatFeedPage />,
   '/investigate': <InvestigatePage />,
   '/bulk': <BulkAnalysisPage />,
   '/providers': <ProvidersPage />,
@@ -24,6 +27,7 @@ export const router = createBrowserRouter([
         ...(item.path === '/' ? { index: true } : { path: item.path.slice(1) }),
         element: PAGES[item.path] ?? <PlaceholderPage title={item.label} description={item.description} />,
       })),
+      { path: 'feed/:eventId', element: <ThreatEventPage /> },
       { path: '*', element: <NotFound /> },
     ],
   },

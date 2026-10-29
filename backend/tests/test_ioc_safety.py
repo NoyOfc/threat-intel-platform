@@ -129,8 +129,9 @@ def test_guard_actually_detects_network_access(no_network: list[str]) -> None:
 SHELL_MODULES = {"subprocess", "pty", "pexpect", "sh"}
 SHELL_CALLS = {"system", "popen", "spawnl", "spawnv", "execv", "execl", "execvp", "execlp"}
 NETWORK_MODULES = {"socket", "http.client", "urllib.request", "httpx", "requests", "aiohttp"}
-# Only provider adapters may ever make network calls (none exist yet).
-NETWORK_ALLOWED_DIRS = {APP_DIR / "providers"}
+# Only provider adapters and feed adapters may make network calls, and only to
+# their fixed endpoints (enforced in providers/base.py and feeds/base.py).
+NETWORK_ALLOWED_DIRS = {APP_DIR / "providers", APP_DIR / "feeds"}
 
 
 def _app_modules() -> list[tuple[Path, ast.Module]]:
@@ -166,7 +167,7 @@ def test_backend_never_calls_shell_eval_or_exec() -> None:
                     assert func.attr not in SHELL_CALLS, f"{path} calls os.{func.attr}"
 
 
-def test_only_providers_may_import_network_clients() -> None:
+def test_only_adapters_may_import_network_clients() -> None:
     for path, tree in _app_modules():
         if any(allowed in path.parents for allowed in NETWORK_ALLOWED_DIRS):
             continue

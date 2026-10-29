@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # the full lookup, including reading the response body.
     provider_timeout_seconds: float = Field(default=8.0, gt=0, le=30)
 
+    # Threat feeds are keyless public sources fetched only on an explicit refresh.
+    # Independent of demo_mode, which governs IOC enrichment providers.
+    feeds_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:
