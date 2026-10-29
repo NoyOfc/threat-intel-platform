@@ -107,12 +107,14 @@ CI (`.github/workflows/ci.yml`) runs ruff + pytest for the backend and `npm ci`,
 **Backend (`backend/app/`)** — layered; dependencies point inward:
 - `api/routes/` — FastAPI routers only: parse input via `schemas/`, call a service, return a schema. No business logic or SQL.
 - `services/` — business logic. Receives a SQLAlchemy `Session`; knows nothing about HTTP.
-- `providers/` — outbound threat-intel adapters (VirusTotal, AbuseIPDB, OTX…). The only place allowed to make network calls, and only to fixed configured endpoints (see SSRF rules). Must honor `DEMO_MODE` (return canned data, no network).
+- `providers/` — outbound threat-intel adapters (VirusTotal, AbuseIPDB, OTX). The only place allowed to make network calls. Subclasses of `providers/base.Provider` only declare `api_host`, `build_request` (path/params), `auth_headers`, `normalize`, and `simulate`; the base class owns request safety (https + host check, no redirects, no env proxies, timeout ceiling, 5 MiB response cap, credentials in headers only), skips internal IOCs, and turns every failure into a `ProviderStatus` instead of raising. `lookup()` must never raise. In `DEMO_MODE`, `simulate()` returns deterministic fictional data marked `simulated=True`; live failures are never replaced with demo data. Normalize only an allowlisted, sanitized subset (`providers/sanitize.py`) into `schemas/provider.ProviderResult`; never store raw responses.
 - `models/` — SQLAlchemy ORM models on `app.db.base.Base`. `schemas/` — Pydantic request/response models; never return ORM objects directly.
 - `db/session.py` — engine + session factory built from `DATABASE_URL`; `get_db` dependency. The engine lives on `app.state`, created in `create_app()`.
 - `core/config.py` — `Settings` (pydantic-settings), read from env / `.env`. `get_settings()` is cached.
 
-`app.main.create_app(settings)` is the app factory; tests build an app with an isolated temp SQLite DB (see `tests/conftest.py`).
+`app.main.create_app(settings, provider_list=None)` is the app factory; tests build an app with an isolated temp SQLite DB (see `tests/conftest.py`, which runs in demo mode) and can inject providers backed by `httpx.MockTransport` (`tests/provider_helpers.py`). Tests must never reach real provider APIs.
+
+**Investigation flow** — `POST /api/investigate`: `parse_ioc` → `services/enrichment.enrich` (all providers concurrently, failures contained) → `services/risk.assess` (weighted, explainable 0–100 score; `unknown` when no provider responded). The scoring algorithm is documented in `docs/risk-scoring.md`; keep that doc and `tests/test_risk.py` in sync with any weight change. `GET /api/providers/status` reports configured / not_configured / unavailable from in-memory `ProviderHealth`, never any part of a key.
 
 **IOC engine (`services/ioc.py`)** — `parse_ioc(raw)` is the single entry point for turning untrusted input into an `IOC` (type, normalized value, `network_scope`). It is pure string processing (`ipaddress`, `re`, `urlsplit`): never add DNS resolution, sockets, or HTTP here. `network_scope`/`is_internal` label private/loopback/metadata values as *valid data*; they are never a reason to connect. Invalid input raises `IOCValidationError(code, message, suspected_type)`. Any new code path that accepts an IOC must go through `parse_ioc`.
 
@@ -122,4 +124,4 @@ CI (`.github/workflows/ci.yml`) runs ruff + pytest for the backend and `npm ci`,
 
 **Frontend (`frontend/src/`)** — Vite + React 19 + React Router 7 + Tailwind 4 (configured via `@tailwindcss/vite`, theme tokens in `index.css`). `navigation.ts` is the single source of nav sections, from which `router.tsx` builds routes (sections without an entry in its `PAGES` map render `pages/PlaceholderPage`); `lib/ioc.ts` mirrors backend limits/labels; IOC values are always rendered as escaped plain text, never as links; `components/Layout.tsx` is the app shell/sidebar; `lib/api.ts` is the only place that calls the backend, always via same-origin relative paths (`/api/...`, `/health`) that the Vite dev server proxies to `API_PROXY_TARGET`.
 
-Full design notes: `docs/architecture.md`; threat model: `docs/security.md`.
+Full design notes: `docs/architecture.md`; threat model: `docs/security.md`; scoring: `docs/risk-scoring.md`.

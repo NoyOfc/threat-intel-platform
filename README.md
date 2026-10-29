@@ -6,7 +6,7 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 
 ## Status
 
-**Phase 2: IOC engine.** Indicators are parsed, validated, and typed. Provider enrichment has not started yet.
+**Phase 3: providers and risk scoring.** Single-IOC investigations are enriched by VirusTotal, AbuseIPDB, and AlienVault OTX, then given an explainable risk score.
 
 - ✅ FastAPI backend with a layered architecture and a `GET /health` endpoint
 - ✅ React + TypeScript + Tailwind navigation shell with a dark SOC theme
@@ -15,7 +15,10 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 - ✅ IOC engine: IPv4, IPv6, domain, URL, MD5, SHA1, SHA256, with automatic type detection, normalization, refanging, and network-scope labeling
 - ✅ `POST /api/investigate` and `POST /api/investigate/bulk` (validation only), with a consistent error format
 - ✅ Investigate and Bulk Analysis pages
-- ⏳ Provider enrichment, persistence, and threat feeds have not started yet
+- ✅ Provider adapters (VirusTotal, AbuseIPDB, OTX) with timeouts, rate-limit cooldown, failure isolation, and a deterministic, clearly labeled demo mode
+- ✅ Explainable 0–100 risk score with contributing factors ([algorithm](docs/risk-scoring.md))
+- ✅ Providers page (`GET /api/providers/status`) showing configured, not configured, or unavailable, with keys never revealed
+- ⏳ Persistence, bulk enrichment, watchlist, and threat feeds have not started yet
 
 ## Planned features
 

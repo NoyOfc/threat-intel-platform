@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     virustotal_api_key: SecretStr | None = None
     abuseipdb_api_key: SecretStr | None = None
     otx_api_key: SecretStr | None = None
+
+    # Per-provider request timeout. A hard ceiling slightly above this also bounds
+    # the full lookup, including reading the response body.
+    provider_timeout_seconds: float = Field(default=8.0, gt=0, le=30)
 
 
 @lru_cache

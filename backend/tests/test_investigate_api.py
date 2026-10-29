@@ -27,7 +27,7 @@ def test_investigate_valid_ioc(client: TestClient) -> None:
     assert response.status_code == 201
     body = response.json()
     UUID(body["id"])
-    assert body["status"] == "validated"
+    assert body["status"] == "completed"
     assert body["created_at"]
     assert body["ioc"] == {
         "type": "url",
@@ -37,7 +37,18 @@ def test_investigate_valid_ioc(client: TestClient) -> None:
         "network_scope": "public",
         "is_internal": False,
     }
-    assert body["enrichment"] == {"status": "not_started", "results": []}
+    # The default test settings run in DEMO_MODE: every result must be labeled simulated.
+    assert body["enrichment"]["status"] == "completed"
+    assert body["enrichment"]["simulated"] is True
+    assert [r["provider"] for r in body["enrichment"]["results"]] == [
+        "virustotal",
+        "abuseipdb",
+        "otx",
+    ]
+    assert body["enrichment"]["results"][1]["status"] == "not_supported"  # AbuseIPDB: IPs only
+    assert all(r["simulated"] for r in body["enrichment"]["results"] if r["status"] == "ok")
+    assert body["risk"]["simulated"] is True
+    assert 0 <= body["risk"]["score"] <= 100
 
 
 def test_investigate_private_ip_is_valid_and_flagged(client: TestClient) -> None:
@@ -48,6 +59,10 @@ def test_investigate_private_ip_is_valid_and_flagged(client: TestClient) -> None
     assert ioc["type"] == "ipv4"
     assert ioc["network_scope"] == "private"
     assert ioc["is_internal"] is True
+    # Internal IOCs are never sent to providers, so there is no intelligence to score.
+    assert {r["status"] for r in response.json()["enrichment"]["results"]} == {"skipped"}
+    assert response.json()["risk"]["level"] == "unknown"
+    assert response.json()["risk"]["score"] is None
 
 
 def test_investigate_hash(client: TestClient) -> None:

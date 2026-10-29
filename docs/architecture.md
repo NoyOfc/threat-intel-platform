@@ -35,6 +35,22 @@ raw string ─► length cap ─► strip ─► reject whitespace/control chars
 - **Scope is informational:** `network_scope` (public, private, loopback, link_local, internal_hostname, …) tells analysts what a value is. Hostname scope comes from the name alone, since names are never resolved.
 - **Endpoints:** `POST /api/investigate` returns `201` with an investigation object (not persisted yet; enrichment `not_started`). `POST /api/investigate/bulk` validates up to 500 IOCs, reports a result for each one, and returns a summary.
 
+## Providers and risk
+
+```
+IOC ─► enrich(): VirusTotal ┐
+                 AbuseIPDB  ├─ concurrent, each → ProviderResult (never raises)
+                 OTX        ┘
+    ─► assess(): weighted signals → score 0-100, level, factors
+```
+
+- `providers/base.Provider` implements request safety and failure handling once. Adapters only map an IOC to a path and params, and map the response JSON to `ProviderResult`.
+- **Statuses:** `ok`, `not_found` (provider answered), `not_supported`, `skipped` (internal IOC), `not_configured` (not attempted), and `rate_limited`, `auth_error`, `timeout`, `unavailable`, `error` (attempted and failed). After a 429, a provider is paused for `Retry-After` seconds (default 60).
+- **Enrichment status:** `completed`, `partial` (some providers failed), `failed`, or `no_providers`.
+- **Risk:** see [`risk-scoring.md`](risk-scoring.md).
+- `ProviderHealth` (in memory) records the latest live outcome per provider for `GET /api/providers/status`.
+- Bulk analysis remains validation-only, because provider quotas make bulk enrichment a separate design problem.
+
 ## Database portability
 
 All database access goes through the SQLAlchemy ORM or Core with no SQLite-specific SQL. SQLite connect arguments are isolated in `db/session.py`. Moving to PostgreSQL means:

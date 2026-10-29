@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.provider import ProviderResult
+from app.schemas.risk import RiskAssessment
 from app.services.ioc import IOC, IOCType, NetworkScope
 
 MAX_BULK_IOCS = 500
@@ -43,17 +45,22 @@ class InvestigateRequest(BaseModel):
     ioc: IOCInput
 
 
+EnrichmentStatus = Literal["completed", "partial", "failed", "no_providers"]
+
+
 class EnrichmentOut(BaseModel):
-    status: Literal["not_started"] = "not_started"
-    results: list[dict[str, object]] = Field(default_factory=list)
+    status: EnrichmentStatus
+    simulated: bool = Field(description="True if any result is DEMO_MODE sample data.")
+    results: list[ProviderResult]
 
 
 class InvestigationResponse(BaseModel):
     id: UUID
     created_at: datetime
-    status: Literal["validated"] = "validated"
+    status: Literal["completed"] = "completed"
     ioc: IOCOut
-    enrichment: EnrichmentOut = Field(default_factory=EnrichmentOut)
+    enrichment: EnrichmentOut
+    risk: RiskAssessment
 
 
 class BulkInvestigateRequest(BaseModel):
