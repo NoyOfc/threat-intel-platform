@@ -4,10 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.workflow import NoteOut
 from app.services.ioc import IOCType
 
 FeedWindow = Literal["24h", "7d", "30d"]
-MAX_NOTES_LENGTH = 5000
 
 
 class ThreatCategory(StrEnum):
@@ -82,8 +82,8 @@ class ThreatEventOut(ThreatEventData):
     collected_at: datetime
     updated_at: datetime
     analyst_status: AnalystStatus | None = None
-    analyst_notes: str | None = None
     analyst_updated_at: datetime | None = None
+    notes: list[NoteOut] = Field(default_factory=list)
 
 
 class RelatedEvent(BaseModel):
@@ -124,8 +124,7 @@ class FeedListResponse(BaseModel):
 class AnalystUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    status: AnalystStatus | None = None
-    notes: str | None = Field(default=None, max_length=MAX_NOTES_LENGTH)
+    status: AnalystStatus | None = Field(description="null clears the status")
 
 
 class TrendingResponse(BaseModel):

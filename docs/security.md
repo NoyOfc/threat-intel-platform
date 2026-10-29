@@ -35,6 +35,8 @@ The binding rules live in [`CLAUDE.md`](../CLAUDE.md). This document explains ho
 | **Fabricated intelligence** | Entities are extracted only when literally present. KEV status comes only from the KEV catalog, and derived severity is labeled as derived. Trending is explicitly scoped to locally collected data. |
 | **Feed IOCs triggering lookups** | Feed IOCs are never investigated automatically. "Investigate IOC" passes one value via router state (not a URL), so links can't trigger provider calls. |
 | **Source access controls** | A source that blocks automated access is marked *planned*, not worked around (CISA Advisories RSS). |
+| **Fabricated relationships** | IOC relationships and tags are stored only from live, non-simulated provider results or explicit analyst entry, with origin and evidence recorded. Domain → IP is analyst-only, because nothing is resolved. Analyst entries are validated by IOC type, and entering one never contacts the network (tested). |
+| **Data integrity** | Foreign keys, unique constraints, and CHECK constraints are enforced, including on SQLite. Migrations are tested for drift and for preserving legacy data. LIKE searches escape wildcards. Notes and tags are stored as text and rendered escaped. |
 | **Error-message leakage** | The health check reports `database: error` without exception detail, because connection errors can include the DB URL. |
 
 ## Demo mode

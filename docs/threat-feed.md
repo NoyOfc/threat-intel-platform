@@ -23,6 +23,7 @@ A defensive intelligence feed built from official public sources, implemented in
 - **Rate limits:** a `429` pauses that source for `Retry-After` seconds (default 15 minutes, maximum 6 hours).
 - A second refresh while one is running returns `409`. `FEEDS_ENABLED=false` disables collection.
 - **Deduplication:** event ID is `sha256(source, external_id)` (the GUID, link, or CVE). Re-collecting the same report updates it in place, and duplicate items in one feed collapse. Analyst status and notes are preserved across updates.
+- **Storage:** CVEs, entities, tags, and IOCs are normalized child tables, and feed IOCs share the `iocs` table with investigations and the watchlist. Related events (pairs sharing a literal CVE, actor, malware family, technique, or campaign) are stored in `threat_event_relationships` and recomputed for changed events.
 
 ## Normalization (`ThreatEvent`)
 
@@ -53,7 +54,7 @@ Fields the source does not provide stay **empty**. Empty means "not identified",
 
 ## Analyst workflow
 
-`PATCH /api/feed/events/{id}/analyst` sets `relevant`, `monitoring`, `not_relevant`, or clears the status, and stores notes (up to 5,000 characters, kept as text and rendered escaped).
+`PATCH /api/feed/events/{id}/analyst` sets `relevant`, `monitoring`, or `not_relevant`, or clears the status (stored in `threat_analyst_statuses`). Notes are a timestamped list (`POST`/`DELETE /api/feed/events/{id}/notes`, up to 5,000 characters each, kept as text and rendered escaped). Both are stored separately from feed data, so re-collection never changes them.
 
 ## IOC handoff
 

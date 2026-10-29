@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.feeds.base import FeedFetchError, FeedParseError, FeedSource, FetchResult, to_utc
-from app.models.feed import FeedSourceState
+from app.models import ThreatSource
 from app.schemas.feed import RefreshResponse, SourceRefreshResult
 from app.services.threat_feed import upsert_events
 
@@ -59,7 +59,7 @@ class FeedCollector:
         async with self._lock:
             started = now or datetime.now(UTC)
             with self._session_factory() as session:
-                states = {s.name: self._state(session, s.name) for s in self.sources}
+                states = {s.name: self._state(session, s) for s in self.sources}
                 snapshots = {name: _Snapshot.of(state) for name, state in states.items()}
 
             # Network phase: concurrent but bounded, each source with its own timeout.
@@ -78,10 +78,16 @@ class FeedCollector:
             )
 
     @staticmethod
-    def _state(session: Session, name: str) -> FeedSourceState:
-        state = session.get(FeedSourceState, name)
+    def _state(session: Session, source: FeedSource) -> ThreatSource:
+        # Rows are created by sync_sources at startup; this is a safety net.
+        state = session.get(ThreatSource, source.name)
         if state is None:
-            state = FeedSourceState(name=name)
+            state = ThreatSource(
+                name=source.name,
+                display_name=source.display_name,
+                endpoint=source.endpoint,
+                category=source.category.value,
+            )
             session.add(state)
             session.commit()
         return state
@@ -132,7 +138,7 @@ class FeedCollector:
         source = item.source
         if item.skipped:
             return item.skipped
-        state = self._state(session, source.name)
+        state = self._state(session, source)
         state.last_attempt_at = now
 
         if item.error:
@@ -192,7 +198,7 @@ class _Snapshot:
     cooldown_until: datetime | None
 
     @classmethod
-    def of(cls, state: FeedSourceState) -> _Snapshot:
+    def of(cls, state: ThreatSource) -> _Snapshot:
         return cls(
             etag=state.etag,
             last_modified=state.last_modified,

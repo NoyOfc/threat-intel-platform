@@ -22,6 +22,7 @@ export type NetworkScope =
   | 'internal_hostname'
 
 export interface Ioc {
+  id: number | null
   type: IocType
   value: string
   original: string
@@ -237,8 +238,8 @@ export interface ThreatEvent {
   tags: string[]
   iocs: { type: IocType; value: string }[]
   analyst_status: AnalystStatus | null
-  analyst_notes: string | null
   analyst_updated_at: string | null
+  notes: Note[]
 }
 
 export interface ThreatEventDetail extends ThreatEvent {
@@ -305,14 +306,19 @@ export function getThreatEvent(id: string, signal?: AbortSignal): Promise<Threat
   return requestJson(`/api/feed/events/${encodeURIComponent(id)}`, { signal })
 }
 
-export function updateAnalyst(
-  id: string,
-  body: { status?: AnalystStatus | null; notes?: string | null },
-): Promise<ThreatEvent> {
+export function updateAnalystStatus(id: string, status: AnalystStatus | null): Promise<ThreatEvent> {
   return requestJson(`/api/feed/events/${encodeURIComponent(id)}/analyst`, {
     method: 'PATCH',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ status }),
   })
+}
+
+export function addEventNote(id: string, body: string): Promise<ThreatEvent> {
+  return postJson(`/api/feed/events/${encodeURIComponent(id)}/notes`, { body })
+}
+
+export function deleteEventNote(id: string, noteId: number): Promise<null> {
+  return requestJson(`/api/feed/events/${encodeURIComponent(id)}/notes/${noteId}`, { method: 'DELETE' })
 }
 
 export function getTrending(window: FeedWindow, signal?: AbortSignal): Promise<Trending> {
@@ -325,4 +331,133 @@ export function getFeedSources(signal?: AbortSignal): Promise<FeedSourceInfo[]> 
 
 export function refreshFeed(): Promise<RefreshResult> {
   return postJson('/api/feed/refresh', {})
+}
+
+// --- Analyst workflow -------------------------------------------------------
+
+export interface Note {
+  id: number
+  body: string
+  created_at: string
+}
+
+export interface Tag {
+  name: string
+  origin: string
+}
+
+export type RelationType = 'resolves_to' | 'asn' | 'malware' | 'threat_actor' | 'campaign'
+
+export interface Relationship {
+  id: number
+  direction: 'outgoing' | 'incoming'
+  relation: RelationType
+  ioc_id: number
+  ioc_type: IocType
+  ioc_value: string
+  target_value: string
+  target_ioc_id: number | null
+  label: string | null
+  origin: string
+  evidence: string | null
+  investigation_id: string | null
+  created_at: string
+  last_observed_at: string
+}
+
+export interface InvestigationSummary {
+  id: string
+  created_at: string
+  ioc_id: number
+  ioc_type: IocType
+  ioc_value: string
+  risk_score: number | null
+  risk_level: RiskLevel
+  simulated: boolean
+  enrichment_status: string
+}
+
+export type WatchlistStatus = 'monitoring' | 'investigating' | 'confirmed_malicious' | 'false_positive' | 'closed'
+
+export interface IocContext {
+  ioc: Ioc
+  tags: Tag[]
+  relationships: Relationship[]
+  watchlist: { id: number; status: WatchlistStatus } | null
+  investigations: InvestigationSummary[]
+  threat_events: { id: string; title: string; source_name: string; published_at: string | null }[]
+}
+
+export interface WatchlistEntry {
+  id: number
+  status: WatchlistStatus
+  created_at: string
+  updated_at: string
+  ioc: Ioc
+  tags: Tag[]
+  notes: Note[]
+  latest_investigation: InvestigationSummary | null
+}
+
+export function getInvestigations(
+  params: URLSearchParams,
+  signal?: AbortSignal,
+): Promise<{ total: number; items: InvestigationSummary[] }> {
+  return requestJson(`/api/investigations?${params.toString()}`, { signal })
+}
+
+export function getInvestigation(id: string, signal?: AbortSignal): Promise<Investigation> {
+  return requestJson(`/api/investigations/${encodeURIComponent(id)}`, { signal })
+}
+
+export function getIocContext(id: number, signal?: AbortSignal): Promise<IocContext> {
+  return requestJson(`/api/iocs/${id}`, { signal })
+}
+
+export function addIocTag(id: number, name: string): Promise<IocContext> {
+  return postJson(`/api/iocs/${id}/tags`, { name })
+}
+
+export function removeIocTag(id: number, name: string): Promise<null> {
+  return requestJson(`/api/iocs/${id}/tags?${new URLSearchParams({ name })}`, { method: 'DELETE' })
+}
+
+export function addRelationship(id: number, relation: RelationType, target: string): Promise<IocContext> {
+  return postJson(`/api/iocs/${id}/relationships`, { relation, target })
+}
+
+export function deleteRelationship(id: number, relationshipId: number): Promise<null> {
+  return requestJson(`/api/iocs/${id}/relationships/${relationshipId}`, { method: 'DELETE' })
+}
+
+export function getWatchlist(
+  params: URLSearchParams,
+  signal?: AbortSignal,
+): Promise<{ total: number; items: WatchlistEntry[] }> {
+  return requestJson(`/api/watchlist?${params.toString()}`, { signal })
+}
+
+export function addToWatchlist(body: {
+  ioc: string
+  status?: WatchlistStatus
+  tags?: string[]
+  note?: string
+}): Promise<WatchlistEntry> {
+  return postJson('/api/watchlist', body)
+}
+
+export function updateWatchlistStatus(id: number, status: WatchlistStatus): Promise<WatchlistEntry> {
+  return requestJson(`/api/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+}
+
+export function removeFromWatchlist(id: number): Promise<null> {
+  return requestJson(`/api/watchlist/${id}`, { method: 'DELETE' })
+}
+
+export function addWatchlistNote(id: number, body: string): Promise<WatchlistEntry> {
+  return postJson(`/api/watchlist/${id}/notes`, { body })
+}
+
+export function deleteWatchlistNote(id: number, noteId: number): Promise<null> {
+  return requestJson(`/api/watchlist/${id}/notes/${noteId}`, { method: 'DELETE' })
 }

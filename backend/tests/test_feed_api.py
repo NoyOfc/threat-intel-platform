@@ -170,17 +170,15 @@ def test_analyst_fields_survive_recollection(tmp_path: Path) -> None:
         collector = client.app.state.feed_collector
         asyncio.run(collector.refresh())
         record_id = event_id("talos", "post-1")
-        client.patch(
-            f"/api/feed/events/{record_id}/analyst",
-            json={"status": "relevant", "notes": "Track this."},
-        )
+        client.patch(f"/api/feed/events/{record_id}/analyst", json={"status": "relevant"})
+        client.post(f"/api/feed/events/{record_id}/notes", json={"body": "Track this."})
         result = asyncio.run(collector.refresh(now=datetime.now(UTC) + timedelta(hours=1)))
         event = client.get(f"/api/feed/events/{record_id}").json()
 
     assert result.sources[0].updated == 1
     assert event["title"] == "Updated title"
     assert event["analyst_status"] == "relevant"
-    assert event["analyst_notes"] == "Track this."
+    assert [n["body"] for n in event["notes"]] == ["Track this."]
 
 
 # --- listing and filters ----------------------------------------------------
@@ -307,33 +305,43 @@ def test_unknown_event_404(client: TestClient) -> None:
 # --- analyst workflow -------------------------------------------------------
 
 
-def test_analyst_status_and_notes(client: TestClient) -> None:
+def test_analyst_status(client: TestClient) -> None:
     refresh(client)
-    record_id = event_id("talos", "talos-1")
+    url = f"/api/feed/events/{event_id('talos', 'talos-1')}/analyst"
 
-    updated = client.patch(
-        f"/api/feed/events/{record_id}/analyst",
-        json={"status": "monitoring", "notes": "  <b>Watch</b> this\x00  "},
-    ).json()
-    status_only = client.patch(
-        f"/api/feed/events/{record_id}/analyst", json={"status": "not_relevant"}
-    ).json()
+    monitoring = client.patch(url, json={"status": "monitoring"}).json()
+    not_relevant = client.patch(url, json={"status": "not_relevant"}).json()
     filtered = titles(
         client.get("/api/feed/events", params={"window": "30d", "analyst_status": "not_relevant"})
     )
-    cleared = client.patch(
-        f"/api/feed/events/{record_id}/analyst", json={"status": None, "notes": ""}
-    ).json()
+    cleared = client.patch(url, json={"status": None}).json()
 
-    assert updated["analyst_status"] == "monitoring"
-    assert updated["analyst_notes"] == "<b>Watch</b> this"  # stored as text, rendered escaped
-    assert status_only["analyst_notes"] == "<b>Watch</b> this"  # notes untouched when omitted
+    assert monitoring["analyst_status"] == "monitoring"
+    assert not_relevant["analyst_status"] == "not_relevant"
+    assert not_relevant["analyst_updated_at"] is not None
     assert filtered == ["Volt Typhoon exploits ExampleSoft gateways"]
-    assert cleared["analyst_status"] is None and cleared["analyst_notes"] is None
+    assert cleared["analyst_status"] is None
+
+
+def test_threat_event_notes(client: TestClient) -> None:
+    refresh(client)
+    base = f"/api/feed/events/{event_id('talos', 'talos-1')}"
+
+    client.post(f"{base}/notes", json={"body": "  <b>Watch</b> this\x00  "})
+    event = client.post(f"{base}/notes", json={"body": "Second note"}).json()
+    first_id = event["notes"][0]["id"]
+    deleted = client.delete(f"{base}/notes/{first_id}")
+    after = client.get(base).json()
+
+    assert [n["body"] for n in event["notes"]] == ["<b>Watch</b> this", "Second note"]
+    assert deleted.status_code == 204
+    assert [n["body"] for n in after["notes"]] == ["Second note"]
+    assert client.delete(f"{base}/notes/{first_id}").status_code == 404
 
 
 @pytest.mark.parametrize(
-    "payload", [{"status": "maybe"}, {"notes": "x" * 5001}, {"status": "relevant", "extra": 1}]
+    "payload",
+    [{"status": "maybe"}, {}, {"status": "relevant", "notes": "old field"}],
 )
 def test_analyst_update_validation(client: TestClient, payload: dict) -> None:
     refresh(client)
@@ -341,6 +349,15 @@ def test_analyst_update_validation(client: TestClient, payload: dict) -> None:
     response = client.patch(
         f"/api/feed/events/{event_id('talos', 'talos-1')}/analyst", json=payload
     )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("payload", [{"body": ""}, {"body": "x" * 5001}, {"text": "x"}])
+def test_note_validation(client: TestClient, payload: dict) -> None:
+    refresh(client)
+
+    response = client.post(f"/api/feed/events/{event_id('talos', 'talos-1')}/notes", json=payload)
 
     assert response.status_code == 422
 

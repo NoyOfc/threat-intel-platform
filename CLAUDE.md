@@ -91,6 +91,7 @@ pytest                                    # all tests
 pytest tests/test_health.py::test_health_ok   # single test
 ruff check . && ruff format --check .
 uvicorn app.main:create_app --factory --reload
+alembic revision --autogenerate -m "describe change"   # new migration (review before committing)
 
 # Backend tests without a local Python
 docker compose run --rm backend pytest
@@ -113,7 +114,7 @@ CI (`.github/workflows/ci.yml`) runs ruff + pytest for the backend and `npm ci`,
 - `db/session.py` — engine + session factory built from `DATABASE_URL`; `get_db` dependency. The engine lives on `app.state`, created in `create_app()`.
 - `core/config.py` — `Settings` (pydantic-settings), read from env / `.env`. `get_settings()` is cached.
 
-`app.main.create_app(settings, provider_list=None, feed_sources=None)` is the app factory; it runs `Base.metadata.create_all` (no Alembic yet — add it before changing existing tables); tests build an app with an isolated temp SQLite DB (see `tests/conftest.py`, which runs in demo mode) and can inject providers backed by `httpx.MockTransport` (`tests/provider_helpers.py`). Tests must never reach real provider APIs.
+`app.main.create_app(settings, provider_list=None, feed_sources=None)` is the app factory; it runs Alembic migrations (`app/db/migrations.run_migrations`; a pre-Alembic DB with `threat_events` but no `alembic_version` is stamped at `0001` first) and syncs `threat_sources` from code; tests build an app with an isolated temp SQLite DB (see `tests/conftest.py`, which runs in demo mode) and can inject providers backed by `httpx.MockTransport` (`tests/provider_helpers.py`). Tests must never reach real provider APIs.
 
 **Investigation flow** — `POST /api/investigate`: `parse_ioc` → `services/enrichment.enrich` (all providers concurrently, failures contained) → `services/risk.assess` (weighted, explainable 0–100 score; `unknown` when no provider responded). The scoring algorithm is documented in `docs/risk-scoring.md`; keep that doc and `tests/test_risk.py` in sync with any weight change. `GET /api/providers/status` reports configured / not_configured / unavailable from in-memory `ProviderHealth`, never any part of a key.
 
@@ -123,8 +124,10 @@ CI (`.github/workflows/ci.yml`) runs ruff + pytest for the backend and `npm ci`,
 
 **API conventions** — feature routes live under `/api` (`/health` is the exception). Every error uses the envelope `{"error": {"code", "message", "details"}}` (`api/errors.py`); handlers must not echo submitted input. `api/middleware.py` caps request bodies (1 MiB, Content-Length required). `tests/test_ioc_safety.py` blocks sockets/DNS during IOC processing and statically forbids shell/eval/exec anywhere in `app/` and network clients outside `app/providers/` and `app/feeds/` — keep it passing.
 
-**Database portability:** keep SQL portable (ORM / SQLAlchemy Core only, no SQLite-specific features) so moving to PostgreSQL is a `DATABASE_URL` + driver change. SQLite-only connect args are isolated in `db/session.py`.
+**Database & migrations:** every schema change is an Alembic revision in `backend/migrations/versions/` (never `create_all`); `tests/test_migrations.py::test_fresh_database_matches_models` fails on model/migration drift. Data migrations must preserve analyst data and be tested against a legacy DB. Keep SQL portable (ORM / Core, explicit constraint names via the naming convention in `db/base.py`, names ≤ 63 chars for PostgreSQL); SQLite specifics (FK pragma, `check_same_thread`, batch mode) are isolated in `db/session.py` and `migrations/env.py`. **Before editing models or migrations, stop the backend container** (`docker compose stop backend`): `--reload` otherwise runs half-written code against the real dev database. Back up `/data/threatscope.db` before applying a new migration to it. Schema overview: `docs/data-model.md`.
+
+**Analyst workflow** — shared `iocs`/`tags`/`analyst_notes` tables (see `docs/data-model.md`). `POST /api/investigate` saves every investigation (`services/investigation.py`); `GET /api/investigations` (search/type/risk/sort) and `/api/investigations/{id}` reopen without re-querying providers. Watchlist: `/api/watchlist` (statuses monitoring/investigating/confirmed_malicious/false_positive/closed, notes). Per-IOC context, tags, and relationships: `/api/iocs/{id}`. `services/iocs.record_provider_intelligence` is the only place provider data becomes stored relationships/tags — it must skip simulated and failed results; domain→IP and campaigns are analyst-only; never infer relationships (e.g. feed IOC → report's actors).
 
 **Frontend (`frontend/src/`)** — Vite + React 19 + React Router 7 + Tailwind 4 (configured via `@tailwindcss/vite`, theme tokens in `index.css`). `navigation.ts` is the single source of nav sections, from which `router.tsx` builds routes (sections without an entry in its `PAGES` map render `pages/PlaceholderPage`); `lib/ioc.ts` mirrors backend limits/labels; IOC values are always rendered as escaped plain text, never as links (the only external links are a threat event's backend-validated `source_url`, opened on click with `rel="noopener noreferrer nofollow"`); feed filters live in the URL (`useSearchParams`); "Investigate IOC" hands a value to `/investigate` via router state, never the URL; `components/Layout.tsx` is the app shell/sidebar; `lib/api.ts` is the only place that calls the backend, always via same-origin relative paths (`/api/...`, `/health`) that the Vite dev server proxies to `API_PROXY_TARGET`.
 
-Full design notes: `docs/architecture.md`; threat model: `docs/security.md`; scoring: `docs/risk-scoring.md`; feed: `docs/threat-feed.md`.
+Full design notes: `docs/architecture.md`; threat model: `docs/security.md`; scoring: `docs/risk-scoring.md`; feed: `docs/threat-feed.md`; schema: `docs/data-model.md`.
