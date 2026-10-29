@@ -6,11 +6,13 @@ import BulkAnalysisPage from './pages/BulkAnalysisPage'
 import InvestigatePage from './pages/InvestigatePage'
 import NotFound from './pages/NotFound'
 import PlaceholderPage from './pages/PlaceholderPage'
+import ProvidersPage from './pages/ProvidersPage'
 
 // Sections with a real page; every other nav item renders a placeholder.
 const PAGES: Record<string, ReactNode> = {
   '/investigate': <InvestigatePage />,
   '/bulk': <BulkAnalysisPage />,
+  '/providers': <ProvidersPage />,
 }
 
 export const router = createBrowserRouter([

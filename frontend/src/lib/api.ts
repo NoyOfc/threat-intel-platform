@@ -30,12 +30,91 @@ export interface Ioc {
   is_internal: boolean
 }
 
+export type ProviderResultStatus =
+  | 'ok'
+  | 'not_found'
+  | 'not_supported'
+  | 'skipped'
+  | 'not_configured'
+  | 'rate_limited'
+  | 'auth_error'
+  | 'timeout'
+  | 'unavailable'
+  | 'error'
+
+export type Reputation = 'malicious' | 'suspicious' | 'clean' | 'unknown'
+
+export interface ProviderResult {
+  provider: string
+  display_name: string
+  status: ProviderResultStatus
+  simulated: boolean
+  message: string | null
+  reputation: Reputation
+  malicious_count: number | null
+  suspicious_count: number | null
+  confidence: number | null
+  report_count: number | null
+  pulse_count: number | null
+  tags: string[]
+  first_seen: string | null
+  last_seen: string | null
+  country: string | null
+  asn: number | null
+  organization: string | null
+  malware_families: string[]
+  threat_actors: string[]
+  raw_metadata_safe_subset: Record<string, string | number | boolean | null>
+}
+
+export type RiskLevel = 'informational' | 'low' | 'medium' | 'high' | 'critical' | 'unknown'
+
+export interface RiskFactor {
+  signal: string
+  points: number
+  detail: string
+  providers: string[]
+}
+
+export interface RiskAssessment {
+  score: number | null
+  level: RiskLevel
+  summary: string
+  factors: RiskFactor[]
+  providers_considered: number
+  providers_flagged: number
+  simulated: boolean
+}
+
 export interface Investigation {
   id: string
   created_at: string
-  status: 'validated'
+  status: 'completed'
   ioc: Ioc
-  enrichment: { status: 'not_started'; results: unknown[] }
+  enrichment: {
+    status: 'completed' | 'partial' | 'failed' | 'no_providers'
+    simulated: boolean
+    results: ProviderResult[]
+  }
+  risk: RiskAssessment
+}
+
+export interface ProviderStatusInfo {
+  name: string
+  display_name: string
+  status: 'configured' | 'not_configured' | 'unavailable'
+  mode: 'live' | 'simulated'
+  api_host: string
+  api_key_env: string
+  supported_types: IocType[]
+  last_result: ProviderResultStatus | null
+  last_checked_at: string | null
+  detail: string
+}
+
+export interface ProvidersStatus {
+  demo_mode: boolean
+  providers: ProviderStatusInfo[]
 }
 
 export interface BulkItem {
@@ -90,6 +169,14 @@ export async function getHealth(signal?: AbortSignal): Promise<HealthResponse> {
     throw new Error(`Health check failed (${response.status})`)
   }
   return (await response.json()) as HealthResponse
+}
+
+export async function getProvidersStatus(signal?: AbortSignal): Promise<ProvidersStatus> {
+  const response = await fetch('/api/providers/status', { signal, headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    throw new ApiError(response.status, 'http_error', `Could not load provider status (${response.status})`)
+  }
+  return (await response.json()) as ProvidersStatus
 }
 
 export function investigate(ioc: string): Promise<Investigation> {

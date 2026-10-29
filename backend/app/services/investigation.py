@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.providers.base import Provider
 from app.schemas.ioc import (
     BulkInvestigateResponse,
     BulkItem,
@@ -10,17 +11,26 @@ from app.schemas.ioc import (
     InvestigationResponse,
     IOCOut,
 )
+from app.services.enrichment import enrich
 from app.services.ioc import MAX_IOC_LENGTH, IOCValidationError, parse_ioc
+from app.services.risk import assess
 
 
-def create_investigation(raw: str) -> InvestigationResponse:
-    """Validate an IOC and open an investigation for it.
+async def create_investigation(raw: str, providers: list[Provider]) -> InvestigationResponse:
+    """Validate an IOC, enrich it via the providers, and score it.
 
-    Enrichment has not started: no provider is queried and nothing is fetched.
-    Investigations are not persisted yet.
+    Providers receive the parsed IOC, never the raw input. Investigations are not
+    persisted yet.
     """
     ioc = parse_ioc(raw)
-    return InvestigationResponse(id=uuid4(), created_at=datetime.now(UTC), ioc=IOCOut.from_ioc(ioc))
+    enrichment = await enrich(ioc, providers)
+    return InvestigationResponse(
+        id=uuid4(),
+        created_at=datetime.now(UTC),
+        ioc=IOCOut.from_ioc(ioc),
+        enrichment=enrichment,
+        risk=assess(enrichment.results),
+    )
 
 
 def analyze_bulk(raws: list[str]) -> BulkInvestigateResponse:

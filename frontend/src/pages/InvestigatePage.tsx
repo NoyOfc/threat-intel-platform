@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ScopeBadge, TypeBadge } from '../components/IocBadges'
+import ProviderResultCard from '../components/ProviderResultCard'
+import RiskPanel from '../components/RiskPanel'
 import { ApiError, investigate, type Investigation } from '../lib/api'
 import { IOC_TYPE_LABELS, MAX_IOC_LENGTH } from '../lib/ioc'
 
@@ -8,8 +10,6 @@ type State =
   | { kind: 'loading' }
   | { kind: 'done'; investigation: Investigation }
   | { kind: 'error'; error: ApiError }
-
-const PROVIDERS = ['VirusTotal', 'AbuseIPDB', 'AlienVault OTX']
 
 export default function InvestigatePage() {
   const [value, setValue] = useState('')
@@ -57,7 +57,7 @@ export default function InvestigatePage() {
           disabled={state.kind === 'loading' || value.trim() === ''}
           className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-surface-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {state.kind === 'loading' ? 'Validating…' : 'Investigate'}
+          {state.kind === 'loading' ? 'Investigating…' : 'Investigate'}
         </button>
       </form>
 
@@ -81,14 +81,27 @@ function ErrorPanel({ error }: { error: ApiError }) {
 }
 
 function Results({ investigation }: { investigation: Investigation }) {
-  const { ioc } = investigation
+  const { ioc, enrichment } = investigation
   return (
     <div className="space-y-4">
+      {enrichment.simulated && (
+        <div
+          role="note"
+          className="rounded-lg border border-dashed border-fuchsia-400/50 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-200"
+        >
+          <strong className="font-semibold">Demo mode.</strong> Provider results below are simulated, deterministic
+          sample data. They are not real threat intelligence. Set <code className="font-mono">DEMO_MODE=false</code>{' '}
+          and configure API keys for live results.
+        </div>
+      )}
+
+      <RiskPanel risk={investigation.risk} />
+
       <div className="rounded-lg border border-surface-700 bg-surface-900 p-5">
         <div className="flex flex-wrap items-center gap-2">
           <TypeBadge type={ioc.type} />
           {ioc.network_scope && <ScopeBadge scope={ioc.network_scope} />}
-          <span className="ml-auto text-xs text-slate-500">Validated</span>
+          <span className="ml-auto text-xs text-slate-500">Indicator</span>
         </div>
         {/* Rendered as plain text, never as a link: IOC URLs are data, not destinations. */}
         <p className="mt-3 font-mono text-lg break-all text-slate-100">{ioc.value}</p>
@@ -99,8 +112,8 @@ function Results({ investigation }: { investigation: Investigation }) {
         )}
         {ioc.is_internal && (
           <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            Non-public address or hostname. It is valid as indicator data and is recorded only. ThreatScope never
-            connects to submitted indicators.
+            Non-public address or hostname. It is valid as indicator data and is recorded only. It was not sent to
+            any third-party provider, and submitted indicators are never connected to.
           </p>
         )}
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
@@ -111,20 +124,17 @@ function Results({ investigation }: { investigation: Investigation }) {
         </dl>
       </div>
 
-      <div className="rounded-lg border border-surface-700 bg-surface-900 p-5">
-        <h2 className="text-sm font-semibold text-slate-200">Intelligence enrichment</h2>
-        <p className="mt-1 text-xs text-slate-500">
-          No providers have been queried. Provider integrations arrive in a later phase.
-        </p>
-        <ul className="mt-4 divide-y divide-surface-700">
-          {PROVIDERS.map((name) => (
-            <li key={name} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-slate-300">{name}</span>
-              <span className="font-mono text-xs text-slate-500">Not queried</span>
-            </li>
+      <section>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-200">Provider results</h2>
+          <span className="font-mono text-xs text-slate-500">enrichment: {enrichment.status.replace('_', ' ')}</span>
+        </div>
+        <div className="mt-2 grid gap-3 lg:grid-cols-3">
+          {enrichment.results.map((result) => (
+            <ProviderResultCard key={result.provider} result={result} />
           ))}
-        </ul>
-      </div>
+        </div>
+      </section>
     </div>
   )
 }

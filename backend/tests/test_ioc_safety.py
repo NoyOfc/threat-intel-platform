@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import Settings
+from app.main import create_app
 from app.services.ioc import parse_ioc
 
 APP_DIR = Path(__file__).resolve().parents[1] / "app"
@@ -74,6 +76,44 @@ def test_api_endpoints_make_no_network_calls(no_network: list[str], client: Test
     for raw in HOSTILE_IOCS:
         client.post("/api/investigate", json={"ioc": raw})
     client.post("/api/investigate/bulk", json={"iocs": HOSTILE_IOCS})
+
+    assert no_network == []
+
+
+INTERNAL_IOCS = [
+    "127.0.0.1",
+    "10.0.0.1",
+    "192.168.1.1",
+    "169.254.169.254",
+    "::1",
+    "fe80::1",
+    "::ffff:127.0.0.1",
+    "localhost",
+    "metadata.google.internal",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://[::1]:8000/admin",
+]
+
+
+def test_live_mode_never_contacts_network_for_internal_iocs(
+    no_network: list[str], tmp_path: Path
+) -> None:
+    # Real HTTP client and fake keys: any outbound attempt would hit the socket guard.
+    settings = Settings(
+        _env_file=None,
+        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        demo_mode=False,
+        virustotal_api_key="fake-key-for-test",
+        abuseipdb_api_key="fake-key-for-test",
+        otx_api_key="fake-key-for-test",
+    )
+    with TestClient(create_app(settings)) as client:
+        for raw in INTERNAL_IOCS:
+            body = client.post("/api/investigate", json={"ioc": raw}).json()
+            assert {r["status"] for r in body["enrichment"]["results"]} <= {
+                "skipped",
+                "not_supported",
+            }
 
     assert no_network == []
 

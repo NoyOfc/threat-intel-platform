@@ -1,13 +1,18 @@
-"""Outbound threat-intelligence provider adapters (none implemented yet).
+"""Outbound threat-intelligence provider adapters.
 
-Rules every adapter must follow (see CLAUDE.md "SSRF" and "Threat feeds"):
+Rules every adapter follows (enforced in ``base.Provider``; see CLAUDE.md "SSRF"):
 
-- The base URL is a constant or configured value for that provider. It is never
-  derived from user input, IOC values, or feed content.
-- IOC values are passed only as URL-encoded path/query parameters to that fixed
-  host. They are never used as a URL to fetch.
-- Redirects are not followed.
-- When ``Settings.demo_mode`` is true, return canned data and make no network calls.
-- API keys come from ``Settings`` (SecretStr) and are never logged or returned.
-- Responses are untrusted. Validate them through Pydantic schemas before use.
+- The API host is a class constant (``api_host``). It is never derived from user
+  input, IOC values, or provider responses, and every request URL is checked to
+  be ``https://<api_host>`` before it is sent.
+- IOC values appear only as percent-encoded path segments or query parameters.
+- Redirects are never followed, and proxy/netrc environment settings are ignored.
+- Internal IOCs (private, loopback, link-local, internal hostnames) are never
+  sent to third parties.
+- When ``Settings.demo_mode`` is true, adapters return deterministic, fictional
+  results marked ``simulated=True`` and make no network calls. Live failures are
+  never replaced with simulated data.
+- API keys are SecretStr, sent only in request headers, and never logged,
+  returned, or included in error messages.
+- Responses are untrusted. Adapters keep only an allowlisted, sanitized subset.
 """
