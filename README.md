@@ -6,7 +6,7 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 
 ## Status
 
-**Phase 3: providers and risk scoring.** Single-IOC investigations are enriched by VirusTotal, AbuseIPDB, and AlienVault OTX, then given an explainable risk score.
+**Phase 4: threat feed.** A defensive intelligence feed from official sources has been added, alongside IOC enrichment from VirusTotal, AbuseIPDB, and AlienVault OTX with explainable risk scoring.
 
 - ✅ FastAPI backend with a layered architecture and a `GET /health` endpoint
 - ✅ React + TypeScript + Tailwind navigation shell with a dark SOC theme
@@ -18,7 +18,8 @@ It is a portfolio project that demonstrates security engineering, threat intelli
 - ✅ Provider adapters (VirusTotal, AbuseIPDB, OTX) with timeouts, rate-limit cooldown, failure isolation, and a deterministic, clearly labeled demo mode
 - ✅ Explainable 0–100 risk score with contributing factors ([algorithm](docs/risk-scoring.md))
 - ✅ Providers page (`GET /api/providers/status`) showing configured, not configured, or unavailable, with keys never revealed
-- ⏳ Persistence, bulk enrichment, watchlist, and threat feeds have not started yet
+- ✅ Threat feed from CISA KEV, Microsoft Threat Intelligence, Cisco Talos, SentinelOne Labs, and The DFIR Report, with filters, KEV designation, literal entity and IOC extraction, trending in collected data, and an analyst workflow ([details](docs/threat-feed.md)). CISA Advisories is planned.
+- ⏳ Investigation persistence, bulk enrichment, watchlist, and dashboard have not started yet
 
 ## Planned features
 

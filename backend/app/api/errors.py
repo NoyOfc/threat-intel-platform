@@ -21,6 +21,7 @@ _HTTP_ERROR_CODES = {
     400: "bad_request",
     404: "not_found",
     405: "method_not_allowed",
+    409: "conflict",
     411: "length_required",
     413: "payload_too_large",
 }

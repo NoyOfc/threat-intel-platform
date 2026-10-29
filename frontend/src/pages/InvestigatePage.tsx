@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { ScopeBadge, TypeBadge } from '../components/IocBadges'
 import ProviderResultCard from '../components/ProviderResultCard'
 import RiskPanel from '../components/RiskPanel'
@@ -11,9 +12,30 @@ type State =
   | { kind: 'done'; investigation: Investigation }
   | { kind: 'error'; error: ApiError }
 
+function toError(error: unknown): ApiError {
+  return error instanceof ApiError ? error : new ApiError(0, 'network_error', 'Could not reach the API.')
+}
+
 export default function InvestigatePage() {
-  const [value, setValue] = useState('')
-  const [state, setState] = useState<State>({ kind: 'idle' })
+  // "Investigate IOC" from the Threat Feed hands one value over via router state (not the URL),
+  // so external links can't trigger investigations and a reload doesn't repeat one.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const handoff = (location.state as { ioc?: unknown } | null)?.ioc
+  const handedOff = typeof handoff === 'string' ? handoff.slice(0, MAX_IOC_LENGTH) : null
+  const started = useRef(false)
+
+  const [value, setValue] = useState(handedOff ?? '')
+  const [state, setState] = useState<State>(handedOff ? { kind: 'loading' } : { kind: 'idle' })
+
+  useEffect(() => {
+    if (!handedOff || started.current) return
+    started.current = true
+    navigate('.', { replace: true, state: null })
+    investigate(handedOff)
+      .then((investigation) => setState({ kind: 'done', investigation }))
+      .catch((error: unknown) => setState({ kind: 'error', error: toError(error) }))
+  }, [handedOff, navigate])
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -21,10 +43,7 @@ export default function InvestigatePage() {
     try {
       setState({ kind: 'done', investigation: await investigate(value) })
     } catch (error) {
-      setState({
-        kind: 'error',
-        error: error instanceof ApiError ? error : new ApiError(0, 'network_error', 'Could not reach the API.'),
-      })
+      setState({ kind: 'error', error: toError(error) })
     }
   }
 
